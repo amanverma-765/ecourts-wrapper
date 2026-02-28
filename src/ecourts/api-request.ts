@@ -2,6 +2,7 @@ import {type ZodType} from "zod";
 import {err, ok, type Result} from "neverthrow";
 import {decryptResponse, encryptRequest} from "./crypto.ts";
 import {ecourtsClient} from "./client.ts";
+import {getToken, isAuthError, refreshToken} from "./token-manager.ts";
 import {
     type AppError,
     BadRequestError,
@@ -17,8 +18,6 @@ import logger from "../utils/logger.ts";
  * Options for making an encrypted API request to eCourts backend.
  */
 export interface ApiRequestOptions<T> {
-    /** Authentication token */
-    token: string;
     /** Base URL for the API endpoint */
     baseUrl: string;
     /** API endpoint path (e.g., "/caseHistoryWebService.php") */
@@ -123,14 +122,14 @@ export async function makeApiRequest<T>(
     options: ApiRequestOptions<T>,
     validationConfig: ResponseValidationConfig = {},
 ): Promise<Result<T, AppError>> {
-    const {token, baseUrl, endpoint, body, schema, errorContext} = options;
+    const {baseUrl, endpoint, body, schema, errorContext} = options;
     const {
         dataField,
         handleStatusN,
         notFoundOnMissingData = true,
     } = validationConfig;
 
-    try {
+    const attempt = async (token: string): Promise<Result<T, AppError>> => {
         // Encrypt token → build Authorization header
         const encTokenResult = await encryptRequest(token);
         if (encTokenResult.isErr()) return err(encTokenResult.error);
@@ -182,6 +181,23 @@ export async function makeApiRequest<T>(
         }
 
         return ok(parsedResponse.data);
+    };
+
+    try {
+        const tokenResult = await getToken();
+        if (tokenResult.isErr()) return err(tokenResult.error);
+
+        const result = await attempt(tokenResult.value);
+
+        // Retry once on auth error with a fresh token
+        if (result.isErr() && isAuthError(result.error)) {
+            logger.warn("Auth error, refreshing token and retrying");
+            const freshToken = await refreshToken();
+            if (freshToken.isErr()) return err(freshToken.error);
+            return attempt(freshToken.value);
+        }
+
+        return result;
     } catch (e: unknown) {
         logger.error(`Failed while ${errorContext}:`, e);
         if (e instanceof DOMException && e.name === "AbortError") {

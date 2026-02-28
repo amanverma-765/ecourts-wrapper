@@ -8,15 +8,13 @@
  *   3. Register it in src/connect/router.ts
  *
  * Inside an RPC handler, use the eCourts framework:
- *   withToken → makeApiRequest → toConnectError
+ *   makeApiRequest → toConnectError
  */
 import type {ConnectRouter} from "@connectrpc/connect";
 import {z} from "zod";
 import {Constants} from "../ecourts/constants.ts";
 import {makeApiRequest} from "../ecourts/api-request.ts";
-import {withToken} from "../ecourts/token-manager.ts";
 import {toConnectError} from "../utils/error/connect-error.ts";
-import {envContextKey} from "../connect/context.ts";
 
 // ──────────────────────────────────────────────
 // 1. Generated code (from .proto via `pnpm generate`)
@@ -46,25 +44,19 @@ const CaseDetailsSchema = z.object({
 // 3. Service registration — shows the full eCourts framework flow
 export function registerCourtCaseService(router: ConnectRouter): void {
     // router.service(CourtCaseService, {
-    //     async getCase(request, context) {
-    //         const kv = context.values.get(envContextKey).ECOURTS_KV;
-    //
-    //         // Fetch token (cached or fresh), call upstream, retry once on 401/403
-    //         const result = await withToken(kv, (token) =>
-    //             makeApiRequest({
-    //                 token,
-    //                 baseUrl: Constants.BASE_URL_HC,
-    //                 endpoint: "/caseHistoryWebService.php",
-    //                 body: {
-    //                     cino: request.cnr,
-    //                     language_flag: "english",
-    //                 },
-    //                 schema: CaseDetailsSchema,
-    //                 errorContext: "fetching case details",
-    //             }, {
-    //                 dataField: "history",
-    //             })
-    //         );
+    //     async getCase(request) {
+    //         const result = await makeApiRequest({
+    //             baseUrl: Constants.BASE_URL_HC,
+    //             endpoint: "/caseHistoryWebService.php",
+    //             body: {
+    //                 cino: request.cnr,
+    //                 language_flag: "english",
+    //             },
+    //             schema: CaseDetailsSchema,
+    //             errorContext: "fetching case details",
+    //         }, {
+    //             dataField: "history",
+    //         });
     //
     //         if (result.isErr()) throw toConnectError(result.error);
     //
