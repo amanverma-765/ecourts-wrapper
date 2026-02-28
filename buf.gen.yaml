@@ -1,0 +1,18 @@
+version: v2
+clean: true
+inputs:
+  - directory: proto
+plugins:
+  # TS message types (server + client)
+  - local: protoc-gen-es
+    out: src/gen
+    opt: target=ts
+
+  # Kotlin message types
+  - remote: buf.build/protocolbuffers/java
+    out: gen/kotlin
+    opt: lite
+
+  # Kotlin Connect client stubs
+  - remote: buf.build/connectrpc/kotlin
+    out: gen/kotlin

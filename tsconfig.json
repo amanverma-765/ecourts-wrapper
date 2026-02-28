@@ -7,10 +7,6 @@
     "lib": ["ESNext"],
     "inlineSourceMap": true,
 
-    // JSX / Hono support
-    "jsx": "react-jsx",
-    "jsxImportSource": "hono/jsx",
-
     // Strict type safety
     "strict": true,
     "noFallthroughCasesInSwitch": true,

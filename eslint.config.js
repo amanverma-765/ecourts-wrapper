@@ -6,6 +6,14 @@ import { defineConfig } from "eslint/config";
 
 export default defineConfig([
   {
+    ignores: [
+      "src/gen/",
+      "gen/",
+      ".wrangler/",
+      "worker-configuration.d.ts",
+    ],
+  },
+  {
     files: ["**/*.{js,mjs,cjs}"],
     plugins: { js },
     languageOptions: {
@@ -30,7 +38,6 @@ export default defineConfig([
     rules: {
       ...tsPlugin.configs.recommended.rules,
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
-      "@typescript-eslint/explicit-function-return-type": "error",
       "@typescript-eslint/no-var-requires": "error",
       "no-import-assign": "error",
       "prefer-const": "warn",
