@@ -2,7 +2,13 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "ecourts-api-wrapper",
   "main": "src/index.ts",
-  "compatibility_date": "2025-08-13"
+  "compatibility_date": "2025-08-13",
+  "kv_namespaces": [
+    {
+      "binding": "ECOURTS_KV",
+      "id": "PLACEHOLDER_RUN_WRANGLER_KV_CREATE"
+    }
+  ]
   // "compatibility_flags": [
   //   "nodejs_compat"
   // ],

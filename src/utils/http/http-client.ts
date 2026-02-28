@@ -6,10 +6,6 @@ export interface HttpClientOptions {
     timeoutMs?: number;
 }
 
-interface JsonBody {
-    [key: string]: unknown;
-}
-
 export function createHttpClient(options?: HttpClientOptions): HttpClient {
     return new HttpClient(options);
 }
@@ -58,28 +54,4 @@ export class HttpClient {
         return this.request(url, {method: "GET"}, headers);
     }
 
-    async post(url: string, body: JsonBody, headers?: Record<string, string>): Promise<Response> {
-        return this.request(
-            url,
-            {
-                method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify(body),
-            },
-            headers
-        );
-    }
-
-    async submitForm(url: string, formData: Record<string, string>, headers?: Record<string, string>): Promise<Response> {
-        const body = new URLSearchParams(formData).toString();
-        return this.request(
-            url,
-            {
-                method: "POST",
-                headers: {"Content-Type": "application/x-www-form-urlencoded"},
-                body,
-            },
-            headers
-        );
-    }
 }

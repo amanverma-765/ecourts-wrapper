@@ -10,14 +10,10 @@ import {
     TimeoutError,
     UnauthorizedError,
 } from "./error/errors.ts";
-import logger from "./logger.ts";
 
-function validateApiError(
+export function httpResponseToError(
     response: Response,
-    message: string
 ): Result<never, AppError> {
-    logger.error(`${message}: ${response.status} ${response.statusText}`);
-
     switch (response.status) {
         case 400:
             return err(new BadRequestError("Invalid request sent to the server"));
@@ -45,5 +41,3 @@ function validateApiError(
             );
     }
 }
-
-export default validateApiError;
