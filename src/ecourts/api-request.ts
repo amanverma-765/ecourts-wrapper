@@ -15,9 +15,9 @@ import {httpResponseToError} from "../utils/api-validator.ts";
 import logger from "../utils/logger.ts";
 
 /**
- * Options for making an encrypted API request to eCourts backend.
+ * Options for making an eCourts API request.
  */
-export interface ApiRequestOptions<T> {
+export interface EcourtsRequestOptions<T> {
     /** Base URL for the API endpoint */
     baseUrl: string;
     /** API endpoint path (e.g., "/caseHistoryWebService.php") */
@@ -36,19 +36,110 @@ export interface ApiRequestOptions<T> {
 export interface ResponseValidationConfig {
     /** Field that must be present for a successful response (e.g., "history", "states") */
     dataField?: string;
-    /** Custom handler for checking status === "N" response */
-    handleStatusN?: (data: unknown, msg: string | undefined) => Result<never, AppError>;
     /** Whether to treat missing dataField as NotFoundError (default: true) */
     notFoundOnMissingData?: boolean;
 }
 
 /**
- * Low-level encrypted GET against the eCourts API.
+ * Make an authenticated, encrypted request to the eCourts API.
  *
- * Handles: encrypt body → HTTP GET → check status → handle null → decrypt (with JSON fallback).
- * Returns the raw decrypted data as `unknown`.
+ * Handles the complete lifecycle:
+ * 1. Fetches token from KV cache (or gets a fresh one)
+ * 2. Encrypts request body and token
+ * 3. Makes HTTP GET request with encrypted parameters
+ * 4. Decrypts response (handles both encrypted and plain JSON)
+ * 5. Pre-validates response structure (auth errors, status N, missing data)
+ * 6. Validates response against provided Zod schema
+ * 7. Retries once with a fresh token on auth errors
  */
-export async function makeEcourtsRequest(
+export async function makeEcourtsRequest<T>(
+    options: EcourtsRequestOptions<T>,
+    validationConfig: ResponseValidationConfig = {},
+): Promise<Result<T, AppError>> {
+    const {baseUrl, endpoint, body, schema, errorContext} = options;
+    const {
+        dataField,
+        notFoundOnMissingData = true,
+    } = validationConfig;
+
+    const attempt = async (token: string): Promise<Result<T, AppError>> => {
+        // Encrypt token → build Authorization header
+        const encTokenResult = await encryptRequest(token);
+        if (encTokenResult.isErr()) return err(encTokenResult.error);
+
+        const result = await rawEncryptedGet(
+            `${baseUrl}${endpoint}`,
+            body,
+            {"Authorization": `Bearer ${encTokenResult.value}`},
+            errorContext,
+        );
+        if (result.isErr()) return err(result.error);
+
+        const rawData = result.value as Record<string, unknown>;
+
+        // Pre-validation: check for authentication errors
+        const statusCode = rawData["status_code"] as string | undefined;
+        if (statusCode === "401" || statusCode === "403") {
+            logger.error("Unauthorized access:", rawData["Msg"]);
+            return err(new UnauthorizedError("Unauthorized API request"));
+        }
+
+        // Pre-validation: check for status === "N" (explicit failure)
+        if (rawData["status"] === "N") {
+            const msg = rawData["Msg"] as string | undefined;
+            return err(new NotFoundError(msg || `No data found for ${errorContext}`));
+        }
+
+        // Pre-validation: check for missing required data field
+        if (dataField && !rawData[dataField]) {
+            const msg = rawData["Msg"] as string | undefined;
+
+            if (notFoundOnMissingData) {
+                return err(new NotFoundError(msg || `No ${dataField} found`));
+            }
+
+            return err(new BadRequestError(msg || "Unknown error from API"));
+        }
+
+        // Validate against Zod schema
+        const parsedResponse = schema.safeParse(rawData);
+        if (!parsedResponse.success) {
+            logger.error("Validation error:", parsedResponse.error);
+            return err(new ValidationError(`Failed to parse response for ${errorContext}`));
+        }
+
+        return ok(parsedResponse.data);
+    };
+
+    try {
+        const tokenResult = await getToken();
+        if (tokenResult.isErr()) return err(tokenResult.error);
+
+        const result = await attempt(tokenResult.value);
+
+        // Retry once on auth error with a fresh token
+        if (result.isErr() && isAuthError(result.error)) {
+            logger.warn("Auth error, refreshing token and retrying");
+            const freshToken = await refreshToken();
+            if (freshToken.isErr()) return err(freshToken.error);
+            return attempt(freshToken.value);
+        }
+
+        return result;
+    } catch (e: unknown) {
+        logger.error(`Failed while ${errorContext}:`, e);
+        if (e instanceof DOMException && e.name === "AbortError") {
+            return err(new InternalServerError("Request timed out — the eCourts server is slow, please try again"));
+        }
+        return err(new InternalServerError("Something went wrong"));
+    }
+}
+
+/**
+ * Low-level encrypted GET against the eCourts API.
+ * Not exported — used internally by makeEcourtsRequest and token-manager.
+ */
+async function rawEncryptedGet(
     url: string,
     body: Record<string, unknown>,
     headers?: Record<string, string>,
@@ -106,103 +197,4 @@ export async function makeEcourtsRequest(
 
     logger.info(`Successfully completed ${errorContext}`);
     return ok(decryptResult.value);
-}
-
-/**
- * Make an encrypted API request to eCourts backend.
- *
- * Handles the complete request lifecycle:
- * 1. Encrypts request body and token
- * 2. Makes HTTP GET request with encrypted parameters
- * 3. Decrypts response
- * 4. Pre-validates response structure (auth errors, status N, missing data)
- * 5. Validates response against provided Zod schema
- */
-export async function makeApiRequest<T>(
-    options: ApiRequestOptions<T>,
-    validationConfig: ResponseValidationConfig = {},
-): Promise<Result<T, AppError>> {
-    const {baseUrl, endpoint, body, schema, errorContext} = options;
-    const {
-        dataField,
-        handleStatusN,
-        notFoundOnMissingData = true,
-    } = validationConfig;
-
-    const attempt = async (token: string): Promise<Result<T, AppError>> => {
-        // Encrypt token → build Authorization header
-        const encTokenResult = await encryptRequest(token);
-        if (encTokenResult.isErr()) return err(encTokenResult.error);
-
-        const result = await makeEcourtsRequest(
-            `${baseUrl}${endpoint}`,
-            body,
-            {"Authorization": `Bearer ${encTokenResult.value}`},
-            errorContext,
-        );
-        if (result.isErr()) return err(result.error);
-
-        const rawData = result.value as Record<string, unknown>;
-
-        // Pre-validation: check for authentication errors
-        const statusCode = rawData["status_code"] as string | undefined;
-        if (statusCode === "401" || statusCode === "403") {
-            logger.error("Unauthorized access:", rawData["Msg"]);
-            return err(new UnauthorizedError("Unauthorized API request"));
-        }
-
-        // Pre-validation: check for status === "N" (explicit failure)
-        if (rawData["status"] === "N") {
-            const msg = rawData["Msg"] as string | undefined;
-
-            if (handleStatusN) {
-                return handleStatusN(rawData, msg);
-            }
-
-            return err(new NotFoundError(msg || `No data found for ${errorContext}`));
-        }
-
-        // Pre-validation: check for missing required data field
-        if (dataField && !rawData[dataField]) {
-            const msg = rawData["Msg"] as string | undefined;
-
-            if (notFoundOnMissingData) {
-                return err(new NotFoundError(msg || `No ${dataField} found`));
-            }
-
-            return err(new BadRequestError(msg || "Unknown error from API"));
-        }
-
-        // Validate against Zod schema
-        const parsedResponse = schema.safeParse(rawData);
-        if (!parsedResponse.success) {
-            logger.error("Validation error:", parsedResponse.error);
-            return err(new ValidationError(`Failed to parse response for ${errorContext}`));
-        }
-
-        return ok(parsedResponse.data);
-    };
-
-    try {
-        const tokenResult = await getToken();
-        if (tokenResult.isErr()) return err(tokenResult.error);
-
-        const result = await attempt(tokenResult.value);
-
-        // Retry once on auth error with a fresh token
-        if (result.isErr() && isAuthError(result.error)) {
-            logger.warn("Auth error, refreshing token and retrying");
-            const freshToken = await refreshToken();
-            if (freshToken.isErr()) return err(freshToken.error);
-            return attempt(freshToken.value);
-        }
-
-        return result;
-    } catch (e: unknown) {
-        logger.error(`Failed while ${errorContext}:`, e);
-        if (e instanceof DOMException && e.name === "AbortError") {
-            return err(new InternalServerError("Request timed out — the eCourts server is slow, please try again"));
-        }
-        return err(new InternalServerError("Something went wrong"));
-    }
 }

@@ -8,12 +8,12 @@
  *   3. Register it in src/connect/router.ts
  *
  * Inside an RPC handler, use the eCourts framework:
- *   makeApiRequest → toConnectError
+ *   makeEcourtsRequest → toConnectError
  */
 import type {ConnectRouter} from "@connectrpc/connect";
 import {z} from "zod";
 import {Constants} from "../ecourts/constants.ts";
-import {makeApiRequest} from "../ecourts/api-request.ts";
+import {makeEcourtsRequest} from "../ecourts/api-request.ts";
 import {toConnectError} from "../utils/error/connect-error.ts";
 
 // ──────────────────────────────────────────────
@@ -45,7 +45,7 @@ const CaseDetailsSchema = z.object({
 export function registerCourtCaseService(router: ConnectRouter): void {
     // router.service(CourtCaseService, {
     //     async getCase(request) {
-    //         const result = await makeApiRequest({
+    //         const result = await makeEcourtsRequest({
     //             baseUrl: Constants.BASE_URL_HC,
     //             endpoint: "/caseHistoryWebService.php",
     //             body: {
