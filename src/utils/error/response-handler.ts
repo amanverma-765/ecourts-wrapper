@@ -1,23 +1,22 @@
-import {Result} from "neverthrow";
-import {AppError} from "./errors";
+import {type Result} from "neverthrow";
+import {type AppError} from "./errors.ts";
 import {error, success} from "./response.ts";
 import logger from "../logger.ts";
-import {mapErrorToStatus} from "./error-mapper.ts";
 
-export function handleResult<T>(result: Result<T, AppError>): Response {
+export function handleResult<T>(result: Result<T, AppError>, successStatus = 200): Response {
     return result.match(
         (data) => {
             return new Response(
-                JSON.stringify(success("Request successful", data)),
+                JSON.stringify(success(data, successStatus)),
                 {
-                    status: 200,
+                    status: successStatus,
                     headers: {"Content-Type": "application/json"},
                 }
             );
         },
         (err) => {
             logger.error(`[${err.identifier}] ${err.message}`);
-            const status = mapErrorToStatus(err);
+            const status = err.statusCode;
             return new Response(
                 JSON.stringify(error(err.message, status, err.identifier)),
                 {

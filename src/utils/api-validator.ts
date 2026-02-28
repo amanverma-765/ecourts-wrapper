@@ -1,10 +1,14 @@
-import {err, Result} from "neverthrow";
+import {err, type Result} from "neverthrow";
 import {
     type AppError,
     BadRequestError,
     ForbiddenError,
+    InternalServerError,
     NotFoundError,
-    UnauthorizedError, InternalServerError, ServiceUnavailableError, TimeoutError
+    RateLimitError,
+    ServiceUnavailableError,
+    TimeoutError,
+    UnauthorizedError,
 } from "./error/errors.ts";
 import logger from "./logger.ts";
 
@@ -20,11 +24,13 @@ function validateApiError(
         case 401:
             return err(new UnauthorizedError("Authentication required or invalid credentials"));
         case 403:
-            return err(new ForbiddenError("You don’t have permission to access this resource"));
+            return err(new ForbiddenError("You don't have permission to access this resource"));
         case 404:
             return err(new NotFoundError("Requested resource not found"));
         case 408:
             return err(new TimeoutError("Your request timed out"));
+        case 429:
+            return err(new RateLimitError("Too many requests — try again later"));
         case 500:
             return err(new InternalServerError("Server encountered an error"));
         case 503:

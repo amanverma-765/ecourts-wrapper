@@ -20,28 +20,26 @@ export class CookieJar {
             const firstPart = parts[0];
             if (!firstPart) continue;
 
-            const keyValue = firstPart.split("=");
-            if (keyValue.length !== 2) continue;
+            // Split on first "=" only — handles values containing "="
+            const eqIdx = firstPart.indexOf("=");
+            if (eqIdx === -1) continue;
 
-            const [key, value] = keyValue;
-            if (!key || !value) continue;
+            const key = firstPart.substring(0, eqIdx);
+            const value = firstPart.substring(eqIdx + 1);
+            if (!key) continue;
 
-            const cookie: Cookie = { value };
+            const cookie: Cookie = {value};
 
             for (let i = 1; i < parts.length; i++) {
                 const part = parts[i];
                 if (!part) continue;
 
-                const splitPart = part.split("=");
-                if (splitPart.length === 0) continue;
+                // Split on first "=" only for attributes too
+                const attrEqIdx = part.indexOf("=");
+                const attr = attrEqIdx === -1 ? part : part.substring(0, attrEqIdx);
+                const attrValue = attrEqIdx === -1 ? undefined : part.substring(attrEqIdx + 1);
 
-                const attr = splitPart[0];
-                if (!attr) continue;
-
-                const attrLower = attr.toLowerCase();
-                const attrValue = splitPart[1];
-
-                switch (attrLower) {
+                switch (attr.toLowerCase()) {
                     case "path":
                         if (attrValue) cookie.path = attrValue;
                         break;

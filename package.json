@@ -3,9 +3,9 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "dev": "bun run typecheck && wrangler dev",
-    "deploy": "bun run typecheck && wrangler deploy --minify",
-    "cf-typegen": "bun run typecheck && wrangler types --env-interface CloudflareBindings"
+    "dev": "pnpm typecheck && wrangler dev",
+    "deploy": "pnpm typecheck && wrangler deploy --minify",
+    "cf-typegen": "pnpm typecheck && wrangler types --env-interface CloudflareBindings"
   },
   "peerDependencies": {
     "typescript": "^5.9.2"
@@ -23,7 +23,6 @@
   "dependencies": {
     "hono": "^4.9.1",
     "neverthrow": "^8.2.0",
-    "tslog": "^4.9.3",
     "zod": "^4.0.17"
   }
 }

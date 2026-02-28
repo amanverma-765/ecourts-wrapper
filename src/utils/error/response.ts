@@ -2,7 +2,6 @@ export type SuccessResponse<T = unknown> = {
     success: true;
     status: number;
     timestamp: number;
-    message: string;
     data: T;
 };
 
@@ -14,28 +13,21 @@ export type ErrorResponse = {
     error: string;
 };
 
-/**
- * Send standardized success response
- */
-export function success<T>(message: string, data: T): SuccessResponse {
+export function success<T>(data: T, status = 200): SuccessResponse<T> {
     return {
         success: true,
-        status: 200,
+        status,
         timestamp: Date.now(),
-        message,
         data,
     };
 }
 
-/**
- * Send standardized error response
- */
 export function error(message: string, status: number, error: string): ErrorResponse {
     return {
         success: false,
-        status: status,
+        status,
         timestamp: Date.now(),
         message,
-        error: error,
+        error,
     };
 }

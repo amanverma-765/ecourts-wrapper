@@ -42,4 +42,10 @@ export default defineConfig([
     },
     linterOptions: { reportUnusedDisableDirectives: "error" },
   },
+  {
+    files: ["**/utils/logger.ts"],
+    rules: {
+      "no-console": "off",
+    },
+  },
 ]);

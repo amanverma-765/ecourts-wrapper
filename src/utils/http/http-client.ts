@@ -1,35 +1,41 @@
 import {CookieJar} from "./cookie-jar.ts";
 
-export function createHttpClient(defaultHeaders?: Record<string, string>): HttpClient {
-    return new HttpClient(undefined, defaultHeaders);
+export interface HttpClientOptions {
+    defaultHeaders?: Record<string, string>;
+    /** Request timeout in milliseconds. Defaults to 10000 (10s). */
+    timeoutMs?: number;
 }
 
 interface JsonBody {
     [key: string]: unknown;
 }
 
+export function createHttpClient(options?: HttpClientOptions): HttpClient {
+    return new HttpClient(options);
+}
+
 export class HttpClient {
     private cookieJar: CookieJar;
-    private defaultHeaders: Record<string, string>;
+    private readonly defaultHeaders: Record<string, string>;
+    private readonly timeoutMs: number;
 
-    constructor(cookieJar?: CookieJar, defaultHeaders?: Record<string, string>) {
-        this.cookieJar = cookieJar || new CookieJar();
-        this.defaultHeaders = defaultHeaders || {};
+    constructor(options?: HttpClientOptions) {
+        this.cookieJar = new CookieJar();
+        this.defaultHeaders = options?.defaultHeaders ?? {};
+        this.timeoutMs = options?.timeoutMs ?? 10_000;
     }
 
     async request(url: string, options: RequestInit = {}, customHeaders?: Record<string, string>): Promise<Response> {
         const headers = new Headers(options.headers);
 
-        // Apply default headers first
-        Object.entries(this.defaultHeaders).forEach(([key, value]) => {
+        for (const [key, value] of Object.entries(this.defaultHeaders)) {
             headers.set(key, value);
-        });
+        }
 
-        // Then apply custom headers (they can override default headers)
         if (customHeaders) {
-            Object.entries(customHeaders).forEach(([key, value]) => {
+            for (const [key, value] of Object.entries(customHeaders)) {
                 headers.set(key, value);
-            });
+            }
         }
 
         const cookieHeader = this.cookieJar.getCookieHeader();
@@ -37,7 +43,10 @@ export class HttpClient {
             headers.set("Cookie", cookieHeader);
         }
 
-        const res = await fetch(url, { ...options, headers });
+        // Use caller-provided signal if present, otherwise apply default timeout
+        const signal = options.signal ?? AbortSignal.timeout(this.timeoutMs);
+
+        const res = await fetch(url, {...options, headers, signal});
 
         const setCookie = res.headers.get("Set-Cookie");
         if (setCookie) this.cookieJar.setCookies(setCookie);
@@ -46,7 +55,7 @@ export class HttpClient {
     }
 
     async get(url: string, headers?: Record<string, string>): Promise<Response> {
-        return this.request(url, { method: "GET" }, headers);
+        return this.request(url, {method: "GET"}, headers);
     }
 
     async post(url: string, body: JsonBody, headers?: Record<string, string>): Promise<Response> {
@@ -54,7 +63,7 @@ export class HttpClient {
             url,
             {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {"Content-Type": "application/json"},
                 body: JSON.stringify(body),
             },
             headers
@@ -67,7 +76,7 @@ export class HttpClient {
             url,
             {
                 method: "POST",
-                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                headers: {"Content-Type": "application/x-www-form-urlencoded"},
                 body,
             },
             headers
