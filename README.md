@@ -1,36 +1,36 @@
-# Cloudflare Worker + Hono + Bun Template
+# eCourts Wrapper — Cloudflare Workers API
 
-This template helps you quickly set up a Cloudflare Worker using **Hono** with **Bun** as the runtime.
+A Cloudflare Workers API built with **Hono**, **neverthrow**, and **Zod** for wrapping the eCourts system.
 
 ---
 
-## 📦 Installation
+## Installation
 
 ```sh
-bun install
+pnpm install
 ```
 
 ---
 
-## 🚀 Development
+## Development
 
 Run the development server locally (with hot reload):
 
 ```sh
-bun run dev
+pnpm dev
 ```
 
 This uses **Wrangler's** local dev mode so you can test your Worker before deploying.
 
 ---
 
-## 📤 Deployment
+## Deployment
 
 Before deploying, you need to set up your **Cloudflare API Token** so Wrangler can authenticate.
 
 ---
 
-### 1️⃣ Get a Cloudflare API Token
+### 1. Get a Cloudflare API Token
 
 1. Go to your [Cloudflare Dashboard → API Tokens](https://dash.cloudflare.com/profile/api-tokens).
 2. Click **Create Token**.
@@ -45,7 +45,7 @@ Before deploying, you need to set up your **Cloudflare API Token** so Wrangler c
 
 ---
 
-### 2️⃣ Export the API Token to Wrangler
+### 2. Export the API Token to Wrangler
 
 Wrangler will look for the `CLOUDFLARE_API_TOKEN` environment variable.
 
@@ -71,33 +71,60 @@ This will open a browser window to log in to Cloudflare.
 
 ---
 
-### 3️⃣ Deploy to Cloudflare
+### 3. Deploy to Cloudflare
 
 ```sh
-bun run deploy
+pnpm deploy
 ```
 
 ---
 
-## 🔄 Generate Cloudflare Types
+## Generate Cloudflare Types
 
 To synchronize type definitions for Cloudflare bindings:
 
 ```sh
-bun run cf-typegen
+pnpm cf-typegen
 ```
 
 Pass the `CloudflareBindings` as generics when instantiating **Hono**:
 
 ```ts
-// src/index.ts
 const app = new Hono<{ Bindings: CloudflareBindings }>()
 ```
 
 ---
 
-## 📚 Useful Links
+## Project Structure
+
+```
+src/
+├── index.ts                  # Worker entry point
+├── app.ts                    # Hono app, middlewares, 404 handler
+├── config/
+│   └── app-env.ts            # AppEnv type (bindings + variables)
+├── routes/
+│   └── index.ts              # Route definitions (health check)
+├── examples/
+│   └── example-route.ts      # Reference pattern for new routes
+└── utils/
+    ├── logger.ts             # Console-based logger (CF Workers compatible)
+    ├── api-validator.ts      # Maps upstream HTTP errors → AppError
+    ├── error/
+    │   ├── errors.ts         # AppError hierarchy with statusCode
+    │   ├── response.ts       # Standardized response types
+    │   └── response-handler.ts  # Result<T, AppError> → Response
+    └── http/
+        ├── http-client.ts    # Fetch wrapper with timeouts + cookie support
+        └── cookie-jar.ts     # Automatic cookie management for sessions
+```
+
+---
+
+## Useful Links
 
 * [Cloudflare Workers Docs](https://developers.cloudflare.com/workers/)
 * [Wrangler CLI Docs](https://developers.cloudflare.com/workers/wrangler/)
 * [Hono Docs](https://hono.dev/)
+* [neverthrow](https://github.com/supermacro/neverthrow)
+* [Zod](https://zod.dev/)
